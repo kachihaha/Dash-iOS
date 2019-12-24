@@ -121,7 +121,7 @@ static NSDictionary *highlightDictionary;
                 self.fullPath = self.path;
                 self.relativePath = self.path;
             }
-            else if([self.path hasPrefix:@"ghttp://"])
+            else if([self.path hasPrefix:@"ghttp://"] || [self.path hasPrefix:@"ghttps://"])
             {
                 self.isAGuide = YES;
                 isOnlineGuide = YES;
@@ -133,7 +133,7 @@ static NSDictionary *highlightDictionary;
         
         if(!isOnlineGuide)
         {
-            if([self.path hasPrefix:@"http://"] || [self.path hasPrefix:@"https://"] || self.isSO)
+            if([self.path hasPrefix:@"http://"] || [self.path hasPrefix:@"https://"] || self.isSO || [self.path hasPrefix:@"dash-apple-api://"])
             {
                 self.isHTTP = YES;
                 self.fullPath = self.path;
@@ -187,7 +187,7 @@ static NSDictionary *highlightDictionary;
     NSString *shorteningFamily = self.docset.nameShorteningFamily;
     NSString *parseFamily = (shorteningFamily) ? shorteningFamily : self.docset.parseFamily;
     parseFamily = (parseFamily && parseFamily.length) ? parseFamily : self.platform;
-    if(([parseFamily isEqualToString:@"python"] || [parseFamily isEqualToString:@"flask"] || [parseFamily isEqualToString:@"scipy"] || [parseFamily isEqualToString:@"numpy"] || [parseFamily isEqualToString:@"pandas"] || [parseFamily isEqualToString:@"sqlalchemy"] || [parseFamily isEqualToString:@"tornado"] || [parseFamily isEqualToString:@"matplotlib"] || [parseFamily isEqualToString:@"salt"] || [parseFamily isEqualToString:@"jinja"] || ([self.platform isEqualToString:@"ocaml"] && ([self.type isEqualToString:@"Type"] || [self.type isEqualToString:@"Value"])) || [parseFamily isEqualToString:@"mono"] || [parseFamily isEqualToString:@"xamarin"] || [parseFamily isEqualToString:@"sencha"] || [parseFamily isEqualToString:@"extjs"] || [parseFamily isEqualToString:@"titanium"] || [parseFamily isEqualToString:@"twisted"] || [parseFamily isEqualToString:@"unity3d"] || [parseFamily isEqualToString:@"django"] || ([parseFamily isEqualToString:@"javascript"] && ![self.type isEqualToString:@"Function"]) || [parseFamily isEqualToString:@"actionscript"] || [parseFamily isEqualToString:@"yui"] || [parseFamily isEqualToString:@"vsphere"] || ([self.platform isEqualToString:@"SproutCore"] && ![self.type isClassType] && ![self.type isEqualToString:@"Protocol"] && ![self.type isEqualToString:@"Delegate"])) && ![self.type isPackageType])
+    if(([parseFamily isEqualToString:@"python"] || [parseFamily isEqualToString:@"flask"] || [parseFamily isEqualToString:@"scipy"] || [parseFamily isEqualToString:@"numpy"] || [parseFamily isEqualToString:@"pandas"] || [parseFamily isEqualToString:@"sqlalchemy"] || [parseFamily isEqualToString:@"tornado"] || [parseFamily isEqualToString:@"matplotlib"] || [parseFamily isEqualToString:@"salt"] || [parseFamily isEqualToString:@"jinja"] || ([self.platform isEqualToString:@"ocaml"] && ([self.type isEqualToString:@"Type"] || [self.type isEqualToString:@"Value"])) || [parseFamily isEqualToString:@"mono"] || [parseFamily isEqualToString:@"xamarin"] || [parseFamily isEqualToString:@"sencha"] || [parseFamily isEqualToString:@"extjs"] || [parseFamily isEqualToString:@"titanium"] || [parseFamily isEqualToString:@"twisted"] || [parseFamily isEqualToString:@"unity3d"] || [parseFamily isEqualToString:@"django"] || ([parseFamily isEqualToString:@"javascript"] && ![self.type isEqualToString:@"Function"] && ![self.type isEqualToString:@"Keyword"]) || [parseFamily isEqualToString:@"actionscript"] || [parseFamily isEqualToString:@"yui"] || [parseFamily isEqualToString:@"vsphere"] || ([self.platform isEqualToString:@"SproutCore"] && ![self.type isClassType] && ![self.type isEqualToString:@"Protocol"] && ![self.type isEqualToString:@"Delegate"])) && ![self.type isPackageType])
     {
         self.name = [self.name lastPackageComponent:@"."];
     }
@@ -766,10 +766,23 @@ static NSDictionary *highlightDictionary;
 - (void)highlightLabel:(UILabel *)label
 {
     NSMutableAttributedString *string = [[NSMutableAttributedString alloc] initWithAttributedString:label.attributedText];
-    for(NSValue *aValue in self.highlightRanges)
+    if(self.highlightRanges.count)
     {
-        NSRange range = [aValue rangeValue];
-        [string addAttributes:[DHDBResult highlightDictionary] range:range];
+        for(NSValue *aValue in self.highlightRanges)
+        {
+            NSRange range = [aValue rangeValue];
+            [string addAttributes:[DHDBResult highlightDictionary] range:range];
+        }
+    }
+    else
+    {
+        // This is needed when the name is not contained within originalName, like the C++ docset
+        // It's a basic workaround that only covers the easiest case
+        NSRange queryRange = [self.name rangeOfString:self.query options:NSCaseInsensitiveSearch];
+        if(queryRange.location != NSNotFound)
+        {
+            [string addAttributes:[DHDBResult highlightDictionary] range:queryRange];
+        }
     }
     label.attributedText = string;
 }

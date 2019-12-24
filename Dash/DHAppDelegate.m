@@ -23,11 +23,14 @@
 #import "DHDocsetManager.h"
 #import "DHTarixProtocol.h"
 #import "DHBlockProtocol.h"
+#import "DHAppleAPIProtocol.h"
 #import "DHCSS.h"
 #import "DHWebViewController.h"
 #import "DHAppUpdateChecker.h"
 #import "DHDocsetBrowser.h"
-//#import <HockeySDK/HockeySDK.h>
+#ifdef APP_STORE
+#import <HockeySDK/HockeySDK.h>
+#endif
 #import "DHRemoteServer.h"
 #import "DHRemoteProtocol.h"
 
@@ -55,12 +58,14 @@
         [[NSFileManager defaultManager] removeItemAtPath:[cacheDir stringByAppendingPathComponent:@"com.apple.nsurlsessiond/Downloads"] error:nil];
     }
     
-//#ifndef DEBUG
-//    [[BITHockeyManager sharedHockeyManager] configureWithIdentifier:@"3b2036819813be1b22bb086f00eea499"];
-//    [[BITHockeyManager sharedHockeyManager].crashManager setCrashManagerStatus:BITCrashManagerStatusAutoSend];
-//    [[BITHockeyManager sharedHockeyManager] startManager];
-//    [[BITHockeyManager sharedHockeyManager].authenticator authenticateInstallation];
-//#endif
+#ifdef APP_STORE
+#ifndef DEBUG
+    [[BITHockeyManager sharedHockeyManager] configureWithIdentifier:@"40091a11e4b749fcb7808992057b165a"];
+    [[BITHockeyManager sharedHockeyManager].crashManager setCrashManagerStatus:BITCrashManagerStatusAutoSend];
+    [[BITHockeyManager sharedHockeyManager] startManager];
+    [[BITHockeyManager sharedHockeyManager].authenticator authenticateInstallation];
+#endif
+#endif
     
 #ifdef DEBUG
     [self checkCommitHashes];
@@ -74,6 +79,7 @@
     [sharedCache removeAllCachedResponses];
     [NSURLCache setSharedURLCache:sharedCache];
     [NSURLProtocol registerClass:[DHTarixProtocol class]];
+    [NSURLProtocol registerClass:[DHAppleAPIProtocol class]];
     [NSURLProtocol registerClass:[DHRemoteProtocol class]];
     [NSURLProtocol registerClass:[DHBlockProtocol class]];
     [[NSUserDefaults standardUserDefaults] registerDefaults:[NSDictionary dictionaryWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"Defaults" ofType:@"plist"]]];
@@ -104,10 +110,38 @@
 
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)actualURL sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
-    [[NSNotificationCenter defaultCenter] postNotificationName:DHPrepareForURLSearch object:nil];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:DHPerformURLSearch object:[actualURL absoluteString]];
-    });
+    if([[actualURL absoluteString] hasCaseInsensitivePrefix:@"dash://"] || [[actualURL absoluteString] hasCaseInsensitivePrefix:@"dash-plugin://"])
+    {
+        [[NSNotificationCenter defaultCenter] postNotificationName:DHPrepareForURLSearch object:nil];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:DHPerformURLSearch object:[actualURL absoluteString]];
+        });
+    }
+    else if([[actualURL pathExtension] isCaseInsensitiveEqual:@"docset"])
+    {
+        NSError *error;
+        NSString *fileName = [actualURL lastPathComponent];
+        NSURL *copyToURL = [[NSURL fileURLWithPath:transfersPath] URLByAppendingPathComponent:fileName isDirectory:NO];
+        [[NSFileManager defaultManager] removeItemAtPath:copyToURL.path error:nil];
+        [[NSFileManager defaultManager] moveItemAtURL:actualURL toURL:copyToURL error:&error];
+        NSString *title;
+        NSString *message;
+        if(error)
+        {
+            title = @"Import Failed";
+            message = @"Could not import the docset. Please try again!";
+            NSLog(@"%@", error.localizedDescription);
+        }
+        else
+        {
+            title = @"Import Successful";
+            message = @"You can find the docset in Settings, under the Transfer Docsets section.";
+            NSLog(@"Docset successfully imported");
+        }
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle: UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Okay" style:UIAlertActionStyleDefault handler:nil]];
+        [[self topViewController] presentViewController:alert animated:YES completion:nil];
+    }
     return YES;
 }
 
@@ -166,7 +200,7 @@
     NSLog(@"did receive memory warning");
 }
 
-- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)())completionHandler
+- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler
 {
     [[NSOperationQueue mainQueue] addOperationWithBlock:^{
         completionHandler();
@@ -214,19 +248,19 @@
 
 - (void)checkCommitHashes
 {
-    NSDictionary *hashes = @{@"DHDBSearcher": @"ea3cca9",
-                             @"DHDBResult": @"c44cff7",
-                             @"DHDBUnifiedResult": @"b332793",
-                             @"DHQueuedDB": @"0199255",
-                             @"DHUnifiedQueuedDB": @"dd42266",
-                             @"DHDBUnifiedOperation": @"1671a90",
-                             @"DHWebViewController": @"620be6d",
-                             @"DHWebPreferences": @"f3017eb",
-                             @"DHDocsetDownloader": @"53f55ce",
-                             @"PlatformIcons": @"414bef0",
-                             @"DHTypes": @"4e990e4",
-                             @"Types": @"8661bda",
-                             @"CSS": @"e7a1182",
+    NSDictionary *hashes = @{@"DHDBSearcher": @"31900da1",
+                             @"DHDBResult": @"31900da1",
+                             @"DHDBUnifiedResult": @"31900da1",
+                             @"DHQueuedDB": @"31900da1",
+                             @"DHUnifiedQueuedDB": @"31900da1",
+                             @"DHDBUnifiedOperation": @"31900da1",
+                             @"DHWebViewController": @"da4e9df6",
+                             @"DHWebPreferences": @"6896e837",
+                             @"DHDocsetDownloader": @"3efbf5e6",
+                             @"PlatformIcons": @"31900da1",
+                             @"DHTypes": @"062c6b03",
+                             @"Types": @"062c6b03",
+                             @"CSS": @"7be5591d",
                              };
     [hashes enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
         NSString *plistHash = [[NSBundle mainBundle] infoDictionary][[key stringByAppendingString:@"Commit"]];
@@ -245,6 +279,27 @@
     }
     self._window = [[DHWindow alloc] init];
     return self._window;
+}
+
+- (UIViewController *)topViewController
+{
+    return [self topViewController:[UIApplication sharedApplication].keyWindow.rootViewController];
+}
+
+- (UIViewController *)topViewController:(UIViewController *)rootViewController
+{
+    if (rootViewController.presentedViewController == nil)
+    {
+        return rootViewController;
+    }
+    if ([rootViewController.presentedViewController isKindOfClass:[UINavigationController class]])
+    {
+        UINavigationController *navigationController = (UINavigationController *)rootViewController.presentedViewController;
+        UIViewController *lastViewController = [[navigationController viewControllers] lastObject];
+        return [self topViewController:lastViewController];
+    }
+    UIViewController *presentedViewController = (UIViewController *)rootViewController.presentedViewController;
+    return [self topViewController:presentedViewController];
 }
 
 @end
